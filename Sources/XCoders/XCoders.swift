@@ -2,6 +2,10 @@
 // https://docs.swift.org/swift-book
 
 import Foundation
+import SwiftUI
 
 @freestanding(expression)
 public macro URL(_ string: StaticString) -> URL = #externalMacro(module: "XCodersMacros", type: "URLMacro")
+
+@freestanding(declaration)
+public macro Preview<Content: View>(_ content: Content) = #externalMacro(module: "XCodersMacros", type: "PreviewMacro")
