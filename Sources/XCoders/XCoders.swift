@@ -8,4 +8,4 @@ import SwiftUI
 public macro URL(_ string: StaticString) -> URL = #externalMacro(module: "XCodersMacros", type: "URLMacro")
 
 @freestanding(declaration)
-public macro ViewPreview<Content: View>(@ViewBuilder content: @escaping () -> Content) = #externalMacro(module: "XCodersMacros", type: "PreviewMacro")
+public macro ViewPreview<Content: View>(@ViewBuilder content: @escaping () -> Content) = #externalMacro(module: "XCodersMacros", type: "ViewPreviewMacro")
