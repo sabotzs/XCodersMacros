@@ -1,5 +1,4 @@
 import Foundation
 import XCoders
+import SwiftUI
 
-let url = #URL("https://google.com")
-print(url.absoluteString)
