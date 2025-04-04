@@ -14,23 +14,54 @@ struct ViewPreviewMacro: DeclarationMacro {
     static func expansion(
         of node: some FreestandingMacroExpansionSyntax,
         in context: some MacroExpansionContext
-    ) throws -> [DeclSyntax] {
-        guard let location = context.location(of: node),
-              let filePath = location.file.as(StringLiteralExprSyntax.self)?.segments.first?.description,
-              let fileURL = URL(string: filePath)
-        else {
+    ) throws(ViewPreviewMacroError) -> [DeclSyntax] {
+        guard let location = context.location(of: node) else {
             fatalError("can't find file name")
         }
-        let structName = context.makeUniqueName(fileURL.deletingPathExtension().lastPathComponent)
+
+        let content: CodeBlockItemListSyntax? = if let trailingClosure = node.trailingClosure?.statements {
+            trailingClosure
+        } else if let argument = node.arguments.first?.expression.as(ClosureExprSyntax.self)?.statements, node.arguments.count == 1 {
+            argument
+        } else {
+            nil
+        }
+
+        guard let content else {
+            throw .notClosure
+        }
+
         return [
             """
-            struct \(structName): PreviewProvider {
+            private struct __ViewPreview$: PreviewProvider {
                 var file: String {
                     \(location.file)
+                }
+
+                var line: Int {
+                    \(location.line)
+                }
+
+                var column: Int {
+                    \(location.column)
+                }
+
+                static var previews: some View {
+                    \(content)
                 }
             }
             """
         ]
+    }
+}
+
+enum ViewPreviewMacroError: Error, CustomStringConvertible {
+    case notClosure
+
+    var description: String {
+        switch self {
+        case .notClosure: "The argument is expected to be a closure"
+        }
     }
 }
 
