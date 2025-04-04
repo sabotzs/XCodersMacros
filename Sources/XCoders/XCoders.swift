@@ -9,3 +9,6 @@ public macro URL(_ string: StaticString) -> URL = #externalMacro(module: "XCoder
 
 @freestanding(declaration, names: named(__ViewPreview$))
 public macro ViewPreview(@ViewBuilder content: @escaping () -> any View) = #externalMacro(module: "XCodersMacros", type: "ViewPreviewMacro")
+
+@attached(member)
+public macro OptionSet() = #externalMacro(module: "XCodersMacros", type: "OptionSetMacro")

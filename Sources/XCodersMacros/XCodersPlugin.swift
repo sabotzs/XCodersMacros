@@ -6,5 +6,6 @@ struct XCodersPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
         URLMacro.self,
         ViewPreviewMacro.self,
+        OptionSetMacro.self,
     ]
 }
