@@ -1,8 +1,27 @@
 import XCoders
 
-let a = 17
-let b = 25
+//@TypeErased
+protocol Box {
+    associatedtype Value
 
-let (result, code) = #stringify(a + b)
+    func get() -> Value
+    func calculate(_ other: Value) -> Value
+}
 
-print("The value \(result) was produced by the code \"\(code)\"")
+struct AnyBox<Value>: Box {
+    private let _get: () -> Value
+    private let _calculate: (Value) -> Value
+
+    init<T: Box>(_ box: T) where T.Value == Value {
+        _get = box.get
+        _calculate = box.calculate
+    }
+
+    func get() -> Value {
+        _get()
+    }
+
+    func calculate(_ other: Value) -> Value {
+        _calculate(other)
+    }
+}
