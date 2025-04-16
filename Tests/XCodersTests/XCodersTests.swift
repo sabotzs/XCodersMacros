@@ -145,4 +145,37 @@ final class XCodersTests: XCTestCase {
         throw XCTSkip("macros are only supported when running tests for the host platform")
 #endif
     }
+
+    func test_macroExpansion_withAnyObjectProtocol_shouldExpand() {
+#if canImport(XCodersMacros)
+        assertMacroExpansion(
+            """
+            @TypeErased
+            protocol Printer: AnyObject {
+                func print()
+            }
+            """,
+            expandedSource:
+            """
+            protocol Printer: AnyObject {
+                func print()
+            }
+            
+            class AnyPrinter: Printer {
+                private let _print: () -> Void
+            
+                init<__macro_local_7PrinterfMu_: Printer>(_ printer: __macro_local_7PrinterfMu_) {
+                    self._print = printer.print
+                }
+            
+                func print() {
+                    _print()
+                }
+            }
+            """,
+            macros: testMacros)
+#else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+#endif
+    }
 }

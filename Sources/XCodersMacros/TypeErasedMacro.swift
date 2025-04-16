@@ -29,20 +29,50 @@ struct TypeErasedMacro {
             .compactMap { $0.decl.as(FunctionDeclSyntax.self) }
         
         let propertyDecls = propertyDeclarations(functionDecls: functionDecls)
-        let initializerClause = initializerClause(protocolDecl: protocolDecl, functionDecls: functionDecls)
+        let initializerDecl = initializerDecl(protocolDecl: protocolDecl, functionDecls: functionDecls)
         let confomedFunctionDecls = conformedFunctionDecls(functionDecls: functionDecls)
         
         let typeName = TokenSyntax(stringLiteral: "Any\(protocolDecl.name)")
         let inheritanceClause = InheritanceClauseSyntax {
             InheritedTypeSyntax(type: TypeSyntax(stringLiteral: "\(protocolDecl.name)"))
         }
-        let result = StructDeclSyntax(name: typeName, inheritanceClause: inheritanceClause) {
-            propertyDecls
-            initializerClause
-            confomedFunctionDecls
+        let result = typeDeclaration(
+            protocolDecl: protocolDecl,
+            typeName: typeName,
+            inheritanceClause: inheritanceClause,
+            propertyDecls: propertyDecls,
+            initializerDecl: initializerDecl,
+            conformedFunctionDecls: confomedFunctionDecls
+        )
+        
+        return [result]
+    }
+    private func typeDeclaration(
+        protocolDecl: ProtocolDeclSyntax,
+        typeName: TokenSyntax,
+        inheritanceClause: InheritanceClauseSyntax,
+        propertyDecls: [VariableDeclSyntax],
+        initializerDecl: InitializerDeclSyntax,
+        conformedFunctionDecls: [FunctionDeclSyntax]
+    ) -> DeclSyntax {
+        let hasClassConstraint = protocolDecl.inheritanceClause?.inheritedTypes
+            .contains { $0.type.description.trimmingCharacters(in: .whitespaces) == "AnyObject" } ?? false
+        
+        if hasClassConstraint {
+            let classDecl = ClassDeclSyntax(name: typeName, inheritanceClause: inheritanceClause) {
+                propertyDecls
+                initializerDecl
+                conformedFunctionDecls
+            }
+            return DeclSyntax(classDecl)
         }
         
-        return [DeclSyntax(result)]
+        let structDecl = StructDeclSyntax(name: typeName, inheritanceClause: inheritanceClause) {
+            propertyDecls
+            initializerDecl
+            conformedFunctionDecls
+        }
+        return DeclSyntax(structDecl)
     }
 
     private func propertyDeclarations(functionDecls: [FunctionDeclSyntax]) -> [VariableDeclSyntax] {
@@ -65,7 +95,7 @@ struct TypeErasedMacro {
         }
     }
 
-    private func initializerClause(
+    private func initializerDecl(
         protocolDecl: ProtocolDeclSyntax,
         functionDecls: [FunctionDeclSyntax]
     ) -> InitializerDeclSyntax {
