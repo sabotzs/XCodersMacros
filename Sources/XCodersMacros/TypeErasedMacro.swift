@@ -45,15 +45,17 @@ struct TypeErasedMacro {
         return [DeclSyntax(result)]
     }
 
-    private func conformedFunctionDecls(functionDecls: [FunctionDeclSyntax]) -> [FunctionDeclSyntax] {
-        functionDecls.map { functionDecl in
-            FunctionDeclSyntax(name: <#T##TokenSyntax#>, signature: <#T##FunctionSignatureSyntax#>, bodyBuilder: <#T##() throws -> CodeBlockItemListSyntax?#>)
-        }
-    }
-
     private func propertyDeclarations(functionDecls: [FunctionDeclSyntax]) -> [VariableDeclSyntax] {
-        functionDecls.map { functionDecl in
-            return VariableDeclSyntax(<#T##bindingSpecifier: Keyword##Keyword#>, name: <#T##PatternSyntax#>, type: <#T##TypeAnnotationSyntax?#>)
+        let modifiers = DeclModifierListSyntax {
+            DeclModifierSyntax(name: .keyword(.private))
+        }
+        return functionDecls.map { functionDecl in
+            let returnClause = functionDecl.signature.returnClause ?? ReturnClauseSyntax(type: TypeSyntax(stringLiteral: "Void"))
+            return VariableDeclSyntax(
+                modifiers: modifiers,
+                .let,
+                name: PatternSyntax(stringLiteral: "_\(functionDecl.name)"),
+                type: TypeAnnotationSyntax(type: TypeSyntax(stringLiteral: "() \(returnClause)")))
         }
     }
 
@@ -61,17 +63,39 @@ struct TypeErasedMacro {
         protocolDecl: ProtocolDeclSyntax,
         functionDecls: [FunctionDeclSyntax]
     ) -> InitializerDeclSyntax {
-        let genericType = <#GenericTypeName#>
-        let genericParameterClause = GenericParameterClauseSyntax(parametersBuilder: <#T##() throws -> GenericParameterListSyntax#>)
+        let genericType = context.makeUniqueName(protocolDecl.name.text)
+        let argumentName = TokenSyntax(stringLiteral: protocolDecl.name.text.lowercased())
+        let genericParameterClause = GenericParameterClauseSyntax {
+            GenericParameterSyntax(name: genericType, colon: .colonToken(), inheritedType: TypeSyntax(stringLiteral: "\(protocolDecl.name)"))
+        }
         let signature = FunctionSignatureSyntax(
             parameterClause: FunctionParameterClauseSyntax {
-                <#FunctionParameterList#>
+                FunctionParameterSyntax(firstName: .wildcardToken(), secondName: argumentName, type: TypeSyntax(stringLiteral: "\(genericType)"))
             }
         )
         return InitializerDeclSyntax(
-            genericParameterClause: <#T##GenericParameterClauseSyntax?#>,
-            signature: <#T##FunctionSignatureSyntax#>,
-            bodyBuilder: <#T##() throws -> CodeBlockItemListSyntax?#>)
+            leadingTrivia: .newlines(2),
+            genericParameterClause: genericParameterClause,
+            signature: signature
+        ) {
+            functionDecls.map { functionDecl in
+                CodeBlockItemSyntax(item: .expr("self._\(functionDecl.name) = \(argumentName).\(functionDecl.name)"))
+            }
+        }
+    }
+
+    private func conformedFunctionDecls(functionDecls: [FunctionDeclSyntax]) -> [FunctionDeclSyntax] {
+        functionDecls.map { functionDecl in
+            FunctionDeclSyntax(leadingTrivia: .newlines(2), name: functionDecl.name, signature: functionDecl.signature) {
+                FunctionCallExprSyntax(
+                    calledExpression: ExprSyntax(stringLiteral: "_\(functionDecl.name)"),
+                    leftParen: .leftParenToken(),
+                    rightParen: .rightParenToken()
+                ) {
+                    
+                }
+            }
+        }
     }
 }
 
