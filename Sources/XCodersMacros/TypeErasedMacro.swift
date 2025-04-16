@@ -8,6 +8,7 @@
 import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
+import SwiftDiagnostics
 
 struct TypeErasedMacro {
     let node: AttributeSyntax
@@ -22,11 +23,19 @@ struct TypeErasedMacro {
 
     func expand() throws -> [DeclSyntax] {
         guard let protocolDecl = declaration.as(ProtocolDeclSyntax.self) else {
+            let diagnostic = Diagnostic(node: declaration, message: TypeErasedDiagnosticMessage.notProtocol)
+            context.diagnose(diagnostic)
             return []
         }
         
         let functionDecls = protocolDecl.memberBlock.members
             .compactMap { $0.decl.as(FunctionDeclSyntax.self) }
+        
+        do {
+            try staticCheck(functionDecls: functionDecls)
+        } catch {
+            return []
+        }
         
         let associatedTypeDecls = protocolDecl.memberBlock.members
             .compactMap { $0.decl.as(AssociatedTypeDeclSyntax.self) }
@@ -51,6 +60,34 @@ struct TypeErasedMacro {
         )
         
         return [result]
+    }
+
+    private func staticCheck(functionDecls: [FunctionDeclSyntax]) throws {
+        let staticFunctions = functionDecls.compactMap { functionDecl in
+            let staticModifierIndex = functionDecl.modifiers.firstIndex { $0.name.tokenKind == .keyword(.static) }
+            if let staticModifierIndex {
+                return (functionDecl: functionDecl, staticModifierIndex: staticModifierIndex)
+            }
+            return nil
+        }
+        guard !staticFunctions.isEmpty else {
+            return
+        }
+        let diagnostic = Diagnostic(
+            node: staticFunctions.first!.functionDecl,
+            message: TypeErasedDiagnosticMessage.staticFunction,
+            fixIts: staticFunctions.map {
+                var newNode = $0.functionDecl
+                newNode.modifiers.remove(at: $0.staticModifierIndex)
+                return .replace(
+                    message: TypeErasedFixItMessage(message: "Remove static keyword for function \($0.functionDecl.name)"),
+                    oldNode: $0.functionDecl,
+                    newNode: newNode
+                )
+            }
+        )
+        context.diagnose(diagnostic)
+        throw ImplementationError.staticCheck
     }
 
     private func typeDeclaration(
@@ -196,6 +233,45 @@ struct TypeErasedMacro {
             result = TryExprSyntax(expression: result)
         }
         return result
+    }
+}
+
+enum ImplementationError: Error {
+    case staticCheck
+}
+
+enum TypeErasedDiagnosticMessage: DiagnosticMessage {
+    case notProtocol
+    case staticFunction
+
+    var message: String {
+        switch self {
+        case .notProtocol:
+            return "Macro @TypeErased can be applied only to protocols."
+        case .staticFunction:
+            return "@TypeErased protocols can't contain static functions"
+        }
+    }
+    
+    var diagnosticID: MessageID {
+        MessageID(domain: "com.type-erased-macro", id: message)
+    }
+    
+    var severity: DiagnosticSeverity {
+        switch self {
+        case .notProtocol:
+            return .error
+        case .staticFunction:
+            return .error
+        }
+    }
+}
+
+struct TypeErasedFixItMessage: FixItMessage {
+    var message: String
+    
+    var fixItID: MessageID {
+        MessageID(domain: "com.type-erased-macro", id: message)
     }
 }
 

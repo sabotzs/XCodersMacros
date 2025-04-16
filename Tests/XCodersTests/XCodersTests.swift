@@ -46,7 +46,7 @@ final class XCodersTests: XCTestCase {
         throw XCTSkip("macros are only supported when running tests for the host platform")
 #endif
     }
-
+    
     func test_macroExpansion_withVoidToIntFunction_shouldExpand() {
 #if canImport(XCodersMacros)
         assertMacroExpansion(
@@ -79,7 +79,7 @@ final class XCodersTests: XCTestCase {
         throw XCTSkip("macros are only supported when running tests for the host platform")
 #endif
     }
-
+    
     func test_macroExpansion_withSingleParameterFunction_shouldExpand() {
 #if canImport(XCodersMacros)
         assertMacroExpansion(
@@ -112,7 +112,7 @@ final class XCodersTests: XCTestCase {
         throw XCTSkip("macros are only supported when running tests for the host platform")
 #endif
     }
-
+    
     func test_macroExpansion_withMultiParameterFunction_shouldExpand() {
 #if canImport(XCodersMacros)
         assertMacroExpansion(
@@ -145,7 +145,7 @@ final class XCodersTests: XCTestCase {
         throw XCTSkip("macros are only supported when running tests for the host platform")
 #endif
     }
-
+    
     func test_macroExpansion_withAnyObjectProtocol_shouldExpand() {
 #if canImport(XCodersMacros)
         assertMacroExpansion(
@@ -211,7 +211,7 @@ final class XCodersTests: XCTestCase {
         throw XCTSkip("macros are only supported when running tests for the host platform")
 #endif
     }
-
+    
     func test_macroExpansion_withThrowingFunction_shouldExpand() {
 #if canImport(XCodersMacros)
         assertMacroExpansion(
@@ -279,7 +279,7 @@ final class XCodersTests: XCTestCase {
         throw XCTSkip("macros are only supported when running tests for the host platform")
 #endif
     }
-
+    
     func test_macroExpansion_withAsyncThrowingFunction_shouldExpand() {
 #if canImport(XCodersMacros)
         assertMacroExpansion(
@@ -312,7 +312,7 @@ final class XCodersTests: XCTestCase {
         throw XCTSkip("macros are only supported when running tests for the host platform")
 #endif
     }
-
+    
     func test_macroExpansion_withAssociatedTypes_shouldExpand() {
 #if canImport(XCodersMacros)
         assertMacroExpansion(
@@ -347,6 +347,77 @@ final class XCodersTests: XCTestCase {
             }
             """,
             macros: testMacros)
+#else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+#endif
+    }
+    
+    func test_macroExpansion_withNonProtocol_shouldDiagnose() {
+#if canImport(XCodersMacros)
+        let diagnostic = TypeErasedDiagnosticMessage.notProtocol
+        let diagnosticSpec = DiagnosticSpec(
+            id: diagnostic.diagnosticID,
+            message: diagnostic.message,
+            line: 1,
+            column: 1,
+            severity: .error
+        )
+        assertMacroExpansion(
+            """
+            @TypeErased
+            class Printer {
+                func print()
+            }
+            """,
+            expandedSource:
+            """
+            class Printer {
+                func print()
+            }
+            """,
+            diagnostics: [
+                diagnosticSpec
+            ],
+            macros: testMacros)
+#else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+#endif
+    }
+    
+    func test_macroExpansion_withStaticFunction_shouldDiagnoseAndApplyFixIt() {
+#if canImport(XCodersMacros)
+        let diagnostic = TypeErasedDiagnosticMessage.staticFunction
+        let message = "Remove static keyword for function execute"
+        let diagnosticSpec = DiagnosticSpec(
+            id: diagnostic.diagnosticID,
+            message: diagnostic.message,
+            line: 3,
+            column: 5,
+            fixIts: [.init(message: message)]
+        )
+        assertMacroExpansion(
+            """
+            @TypeErased
+            protocol Command {
+                static func execute()
+            }
+            """,
+            expandedSource:
+            """
+            protocol Command {
+                static func execute()
+            }
+            """,
+            diagnostics: [diagnosticSpec],
+            macros: testMacros,
+            applyFixIts: [message],
+            fixedSource:
+            """
+            @TypeErased
+            protocol Command {func execute()
+            }
+            """
+        )
 #else
         throw XCTSkip("macros are only supported when running tests for the host platform")
 #endif
