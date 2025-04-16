@@ -50,12 +50,18 @@ struct TypeErasedMacro {
             DeclModifierSyntax(name: .keyword(.private))
         }
         return functionDecls.map { functionDecl in
+            let inputType = TupleTypeElementListSyntax {
+                functionDecl.signature.parameterClause.parameters.map { parameter in
+                    TupleTypeElementSyntax(type: parameter.type)
+                }
+            }
             let returnClause = functionDecl.signature.returnClause ?? ReturnClauseSyntax(type: TypeSyntax(stringLiteral: "Void"))
+            let functionType = FunctionTypeSyntax(parameters: inputType, returnClause: returnClause)
             return VariableDeclSyntax(
                 modifiers: modifiers,
                 .let,
                 name: PatternSyntax(stringLiteral: "_\(functionDecl.name)"),
-                type: TypeAnnotationSyntax(type: TypeSyntax(stringLiteral: "() \(returnClause)")))
+                type: TypeAnnotationSyntax(type: functionType))
         }
     }
 
@@ -92,7 +98,9 @@ struct TypeErasedMacro {
                     leftParen: .leftParenToken(),
                     rightParen: .rightParenToken()
                 ) {
-                    
+                    functionDecl.signature.parameterClause.parameters.map {
+                        LabeledExprSyntax(expression: ExprSyntax(stringLiteral: "\($0.secondName ?? $0.firstName)"))
+                    }
                 }
             }
         }
