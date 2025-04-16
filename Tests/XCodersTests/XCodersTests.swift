@@ -46,4 +46,37 @@ final class XCodersTests: XCTestCase {
         throw XCTSkip("macros are only supported when running tests for the host platform")
 #endif
     }
+
+    func test_macroExpansion_withVoidToIntFunction_shouldExpand() {
+#if canImport(XCodersMacros)
+        assertMacroExpansion(
+            """
+            @TypeErased
+            protocol Box {
+                func get() -> Int
+            }
+            """,
+            expandedSource:
+            """
+            protocol Box {
+                func get() -> Int
+            }
+            
+            struct AnyBox : Box {
+                private let _get: () -> Int
+            
+                init<__macro_local_3BoxfMu_: Box >(_ box: __macro_local_3BoxfMu_) {
+                    self._get = box.get
+                }
+            
+                func get() -> Int {
+                    _get()
+                }
+            }
+            """,
+            macros: testMacros)
+#else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+#endif
+    }
 }
