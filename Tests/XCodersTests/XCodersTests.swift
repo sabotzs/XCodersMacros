@@ -312,4 +312,43 @@ final class XCodersTests: XCTestCase {
         throw XCTSkip("macros are only supported when running tests for the host platform")
 #endif
     }
+
+    func test_macroExpansion_withAssociatedTypes_shouldExpand() {
+#if canImport(XCodersMacros)
+        assertMacroExpansion(
+            """
+            @TypeErased
+            protocol Fetcher {
+                associatedtype Value
+                associatedtype ErrorType: Error
+            
+                func fetch() async throws(ErrorType) -> Value
+            }
+            """,
+            expandedSource:
+            """
+            protocol Fetcher {
+                associatedtype Value
+                associatedtype ErrorType: Error
+            
+                func fetch() async throws(ErrorType) -> Value
+            }
+            
+            struct AnyFetcher <Value, ErrorType: Error>: Fetcher {
+                private let _fetch: () async throws(ErrorType) -> Value
+            
+                init<__macro_local_7FetcherfMu_: Fetcher >(_ fetcher: __macro_local_7FetcherfMu_) where __macro_local_7FetcherfMu_.Value == Value, __macro_local_7FetcherfMu_.ErrorType == ErrorType {
+                    self._fetch = fetcher.fetch
+                }
+            
+                func fetch() async throws(ErrorType) -> Value {
+                    try await _fetch()
+                }
+            }
+            """,
+            macros: testMacros)
+#else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+#endif
+    }
 }

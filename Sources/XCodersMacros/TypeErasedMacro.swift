@@ -28,17 +28,22 @@ struct TypeErasedMacro {
         let functionDecls = protocolDecl.memberBlock.members
             .compactMap { $0.decl.as(FunctionDeclSyntax.self) }
         
+        let associatedTypeDecls = protocolDecl.memberBlock.members
+            .compactMap { $0.decl.as(AssociatedTypeDeclSyntax.self) }
+        
         let propertyDecls = propertyDeclarations(functionDecls: functionDecls)
-        let initializerDecl = initializerDecl(protocolDecl: protocolDecl, functionDecls: functionDecls)
+        let initializerDecl = initializerDecl(protocolDecl: protocolDecl, functionDecls: functionDecls, associatedTypeDecls: associatedTypeDecls)
         let confomedFunctionDecls = conformedFunctionDecls(functionDecls: functionDecls)
         
         let typeName = TokenSyntax(stringLiteral: "Any\(protocolDecl.name)")
+        let genericParameterClause = genericParameterClause(associatedTypeDecls: associatedTypeDecls)
         let inheritanceClause = InheritanceClauseSyntax {
             InheritedTypeSyntax(type: TypeSyntax(stringLiteral: "\(protocolDecl.name)"))
         }
         let result = typeDeclaration(
             protocolDecl: protocolDecl,
             typeName: typeName,
+            genericParameterClause: genericParameterClause,
             inheritanceClause: inheritanceClause,
             propertyDecls: propertyDecls,
             initializerDecl: initializerDecl,
@@ -47,9 +52,11 @@ struct TypeErasedMacro {
         
         return [result]
     }
+
     private func typeDeclaration(
         protocolDecl: ProtocolDeclSyntax,
         typeName: TokenSyntax,
+        genericParameterClause: GenericParameterClauseSyntax?,
         inheritanceClause: InheritanceClauseSyntax,
         propertyDecls: [VariableDeclSyntax],
         initializerDecl: InitializerDeclSyntax,
@@ -59,7 +66,7 @@ struct TypeErasedMacro {
             .contains { $0.type.description.trimmingCharacters(in: .whitespaces) == "AnyObject" } ?? false
         
         if hasClassConstraint {
-            let classDecl = ClassDeclSyntax(name: typeName, inheritanceClause: inheritanceClause) {
+            let classDecl = ClassDeclSyntax(name: typeName, genericParameterClause: genericParameterClause, inheritanceClause: inheritanceClause) {
                 propertyDecls
                 initializerDecl
                 conformedFunctionDecls
@@ -67,12 +74,35 @@ struct TypeErasedMacro {
             return DeclSyntax(classDecl)
         }
         
-        let structDecl = StructDeclSyntax(name: typeName, inheritanceClause: inheritanceClause) {
+        let structDecl = StructDeclSyntax(name: typeName, genericParameterClause: genericParameterClause, inheritanceClause: inheritanceClause) {
             propertyDecls
             initializerDecl
             conformedFunctionDecls
         }
         return DeclSyntax(structDecl)
+    }
+
+    private func genericParameterClause(associatedTypeDecls: [AssociatedTypeDeclSyntax]) -> GenericParameterClauseSyntax? {
+        guard !associatedTypeDecls.isEmpty else {
+            return nil
+        }
+        return GenericParameterClauseSyntax {
+            associatedTypeDecls.map { associatedTypeDecl in
+                if let inheritanceClause = associatedTypeDecl.inheritanceClause {
+                    let inheritedTypes = CompositionTypeElementListSyntax {
+                        inheritanceClause.inheritedTypes.map { inheritedType in
+                            CompositionTypeElementSyntax(type: inheritedType.type)
+                        }
+                    }
+                    return GenericParameterSyntax(
+                        name: associatedTypeDecl.name,
+                        colon: .colonToken(),
+                        inheritedType: CompositionTypeSyntax(elements: inheritedTypes)
+                    )
+                }
+                return GenericParameterSyntax(name: associatedTypeDecl.name)
+            }
+        }
     }
 
     private func propertyDeclarations(functionDecls: [FunctionDeclSyntax]) -> [VariableDeclSyntax] {
@@ -103,7 +133,8 @@ struct TypeErasedMacro {
 
     private func initializerDecl(
         protocolDecl: ProtocolDeclSyntax,
-        functionDecls: [FunctionDeclSyntax]
+        functionDecls: [FunctionDeclSyntax],
+        associatedTypeDecls: [AssociatedTypeDeclSyntax]
     ) -> InitializerDeclSyntax {
         let genericType = context.makeUniqueName(protocolDecl.name.text)
         let argumentName = TokenSyntax(stringLiteral: protocolDecl.name.text.lowercased())
@@ -115,10 +146,24 @@ struct TypeErasedMacro {
                 FunctionParameterSyntax(firstName: .wildcardToken(), secondName: argumentName, type: TypeSyntax(stringLiteral: "\(genericType)"))
             }
         )
+        let genericWhereClause: GenericWhereClauseSyntax? = if !associatedTypeDecls.isEmpty {
+            GenericWhereClauseSyntax {
+                associatedTypeDecls.map { associatedTypeDecl in
+                    let requirement = SameTypeRequirementSyntax(
+                        leftType: TypeSyntax(stringLiteral: "\(genericType).\(associatedTypeDecl.name)"),
+                        equal: .binaryOperator("=="),
+                        rightType: TypeSyntax(stringLiteral: "\(associatedTypeDecl.name)"))
+                    return GenericRequirementSyntax(requirement: .sameTypeRequirement(requirement))
+                }
+            }
+        } else {
+            nil
+        }
         return InitializerDeclSyntax(
             leadingTrivia: .newlines(2),
             genericParameterClause: genericParameterClause,
-            signature: signature
+            signature: signature,
+            genericWhereClause: genericWhereClause
         ) {
             functionDecls.map { functionDecl in
                 CodeBlockItemSyntax(item: .expr("self._\(functionDecl.name) = \(argumentName).\(functionDecl.name)"))
