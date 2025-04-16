@@ -14,5 +14,36 @@ let testMacros: [String: Macro.Type] = [
 #endif
 
 final class XCodersTests: XCTestCase {
-
+    func test_macroExpansion_withVoidToVoidFunction_shouldExpand() throws {
+#if canImport(XCodersMacros)
+        assertMacroExpansion(
+            """
+            @TypeErased
+            protocol Printer {
+                func print()
+            }
+            """,
+            expandedSource:
+            """
+            protocol Printer {
+                func print()
+            }
+            
+            struct AnyPrinter : Printer {
+                private let _print: () -> Void
+            
+                init<__macro_local_7PrinterfMu_: Printer >(_ printer: __macro_local_7PrinterfMu_) {
+                    self._print = printer.print
+                }
+            
+                func print() {
+                    _print()
+                }
+            }
+            """,
+            macros: testMacros)
+#else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+#endif
+    }
 }
