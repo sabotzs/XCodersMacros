@@ -86,7 +86,13 @@ struct TypeErasedMacro {
                 }
             }
             let returnClause = functionDecl.signature.returnClause ?? ReturnClauseSyntax(type: TypeSyntax(stringLiteral: "Void"))
-            let functionType = FunctionTypeSyntax(parameters: inputType, returnClause: returnClause)
+            let functionType = FunctionTypeSyntax(
+                parameters: inputType,
+                effectSpecifiers: TypeEffectSpecifiersSyntax(
+                    asyncSpecifier: functionDecl.signature.effectSpecifiers?.asyncSpecifier,
+                    throwsClause: functionDecl.signature.effectSpecifiers?.throwsClause
+                ),
+                returnClause: returnClause)
             return VariableDeclSyntax(
                 modifiers: modifiers,
                 .let,
@@ -123,17 +129,28 @@ struct TypeErasedMacro {
     private func conformedFunctionDecls(functionDecls: [FunctionDeclSyntax]) -> [FunctionDeclSyntax] {
         functionDecls.map { functionDecl in
             FunctionDeclSyntax(leadingTrivia: .newlines(2), name: functionDecl.name, signature: functionDecl.signature) {
-                FunctionCallExprSyntax(
-                    calledExpression: ExprSyntax(stringLiteral: "_\(functionDecl.name)"),
-                    leftParen: .leftParenToken(),
-                    rightParen: .rightParenToken()
-                ) {
-                    functionDecl.signature.parameterClause.parameters.map {
-                        LabeledExprSyntax(expression: ExprSyntax(stringLiteral: "\($0.secondName ?? $0.firstName)"))
-                    }
-                }
+                functionCall(functionDecl: functionDecl)
             }
         }
+    }
+    
+    private func functionCall(functionDecl: FunctionDeclSyntax) -> ExprSyntaxProtocol {
+        var result: ExprSyntaxProtocol = FunctionCallExprSyntax(
+            calledExpression: ExprSyntax(stringLiteral: "_\(functionDecl.name)"),
+            leftParen: .leftParenToken(),
+            rightParen: .rightParenToken()
+        ) {
+            functionDecl.signature.parameterClause.parameters.map {
+                LabeledExprSyntax(expression: ExprSyntax(stringLiteral: "\($0.secondName ?? $0.firstName)"))
+            }
+        }
+        if functionDecl.signature.effectSpecifiers?.asyncSpecifier != nil {
+            result = AwaitExprSyntax(expression: result)
+        }
+        if functionDecl.signature.effectSpecifiers?.throwsClause != nil {
+            result = TryExprSyntax(expression: result)
+        }
+        return result
     }
 }
 

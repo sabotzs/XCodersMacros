@@ -178,4 +178,138 @@ final class XCodersTests: XCTestCase {
         throw XCTSkip("macros are only supported when running tests for the host platform")
 #endif
     }
+    
+    func test_macroExpansion_withAsyncFunction_shouldExpand() {
+#if canImport(XCodersMacros)
+        assertMacroExpansion(
+            """
+            @TypeErased
+            protocol Printer {
+                func print() async
+            }
+            """,
+            expandedSource:
+            """
+            protocol Printer {
+                func print() async
+            }
+            
+            struct AnyPrinter : Printer {
+                private let _print: () async -> Void
+            
+                init<__macro_local_7PrinterfMu_: Printer >(_ printer: __macro_local_7PrinterfMu_) {
+                    self._print = printer.print
+                }
+            
+                func print() async {
+                    await _print()
+                }
+            }
+            """,
+            macros: testMacros)
+#else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+#endif
+    }
+
+    func test_macroExpansion_withThrowingFunction_shouldExpand() {
+#if canImport(XCodersMacros)
+        assertMacroExpansion(
+            """
+            @TypeErased
+            protocol Printer {
+                func print() throws
+            }
+            """,
+            expandedSource:
+            """
+            protocol Printer {
+                func print() throws
+            }
+            
+            struct AnyPrinter : Printer {
+                private let _print: () throws -> Void
+            
+                init<__macro_local_7PrinterfMu_: Printer >(_ printer: __macro_local_7PrinterfMu_) {
+                    self._print = printer.print
+                }
+            
+                func print() throws {
+                    try _print()
+                }
+            }
+            """,
+            macros: testMacros)
+#else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+#endif
+    }
+    
+    func test_macroExpansion_withTypedThrowingFunction_shouldExpand() {
+#if canImport(XCodersMacros)
+        assertMacroExpansion(
+            """
+            enum PrinterError: Error { }
+            @TypeErased
+            protocol Printer {
+                func print() throws(PrinterError)
+            }
+            """,
+            expandedSource:
+            """
+            enum PrinterError: Error { }
+            protocol Printer {
+                func print() throws(PrinterError)
+            }
+            
+            struct AnyPrinter : Printer {
+                private let _print: () throws(PrinterError) -> Void
+            
+                init<__macro_local_7PrinterfMu_: Printer >(_ printer: __macro_local_7PrinterfMu_) {
+                    self._print = printer.print
+                }
+            
+                func print() throws(PrinterError) {
+                    try _print()
+                }
+            }
+            """,
+            macros: testMacros)
+#else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+#endif
+    }
+
+    func test_macroExpansion_withAsyncThrowingFunction_shouldExpand() {
+#if canImport(XCodersMacros)
+        assertMacroExpansion(
+            """
+            @TypeErased
+            protocol Printer {
+                func print() async throws
+            }
+            """,
+            expandedSource:
+            """
+            protocol Printer {
+                func print() async throws
+            }
+            
+            struct AnyPrinter : Printer {
+                private let _print: () async throws -> Void
+            
+                init<__macro_local_7PrinterfMu_: Printer >(_ printer: __macro_local_7PrinterfMu_) {
+                    self._print = printer.print
+                }
+            
+                func print() async throws {
+                    try await _print()
+                }
+            }
+            """,
+            macros: testMacros)
+#else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+#endif
+    }
 }
